@@ -18,6 +18,27 @@ enum Role {
   ADMIN
 }
 
+enum OtpType {
+  registration
+  reset
+}
+
+enum FlowLevel {
+  spotting
+  light
+  medium
+  heavy
+}
+
+enum IrregularityType {
+  short_cycle
+  long_cycle
+  missed_period
+  heavy_flow
+  light_flow
+  other
+}
+
 model User {
   id                       Int        @id() @default(autoincrement())
   name                     String     @db.VarChar()
@@ -28,5 +49,102 @@ model User {
   created_at               DateTime   @default(now())
   updated_at               DateTime   @updatedAt
 
+  otp                      Otp[]
+  cycle                    Cycle[]
+  irregularity             Irregularity[]
+
   @@map("users")
+}
+
+model Otp {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  otp        String   @db.VarChar(6)
+  type       OtpType
+  expiresAt  DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("otps")
+}
+
+model Cycle {
+  id                          Int                  @id @default(autoincrement())
+  user_id                     Int
+  start_date                  DateTime
+  predicted_start_date        DateTime
+  end_date                    DateTime?
+  predicted_end_date          DateTime
+  description                 String?
+  created_at                  DateTime            @default(now())
+  updated_at                  DateTime            @updatedAt 
+
+  user                        User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  period_days                 PeriodDay[]
+  irregularity                Irregularity[]
+
+  @@map("cycles")
+}
+
+model PeriodDay {
+  id                       Int      @id @default(autoincrement())
+  cycle_id                 Int
+  user_id                  Int
+  date                     DateTime
+  flow_level               FlowLevel
+  description              String?
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  cycle                    Cycle    @relation(fields: [cycle_id], references: [id], onDelete: Cascade)
+
+  @@map("period_days")
+}
+
+model Irregularity {
+  id                       Int      @id @default(autoincrement())
+  user_id                  Int
+  cycle_id                 Int
+  irregularity_type        IrregularityType
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  user                     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  cycle                    Cycle    @relation(fields: [cycle_id], references: [id], onDelete: Cascade)
+
+  gynecologists            IrregularitiesGynecologist[]
+
+  @@map("irregularities")
+}
+
+model Gynecologist {
+  id                      Int     @id @default(autoincrement())
+  name                    String
+  address                 String
+  distance                Decimal
+  phone                   String?
+  specialty               String
+  latitude                Decimal
+  longitude               Decimal
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  irregularities          IrregularitiesGynecologist[]
+
+
+  @@map("gynecologists")
+}
+
+model IrregularitiesGynecologist {
+  id                      Int     @id @default(autoincrement())
+  irregularity_id         Int
+  gynecologist_id         Int
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  irregularity            Irregularity @relation(fields: [irregularity_id], references: [id], onDelete: Cascade)
+  gynecologist            Gynecologist @relation(fields: [gynecologist_id], references: [id], onDelete: Cascade)
+
+  @@map("irregularities_gynecologists")
 }

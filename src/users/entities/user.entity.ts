@@ -1,1 +1,12 @@
-export class User {}
+import { Role } from "@prisma/client";
+
+export class User {
+    id: number;
+    name: string;
+    email: string;
+    password: string;
+    phone_number: string;
+    role: Role;
+    created_at: Date;
+    updated_at: Date;
+}
