@@ -5,7 +5,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { plainToClass } from 'class-transformer';
 import { hash } from 'bcrypt';
 import { FindAllUsersDto } from './dto/find-all-users.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -15,6 +15,7 @@ export class UsersService {
     const data = {
       ...createUserDto,
       password: await hash(createUserDto.password, 10),
+      role: Role.USER,
     };
 
     const user = await this.prisma.user.create({
