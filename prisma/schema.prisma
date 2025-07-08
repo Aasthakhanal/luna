@@ -30,6 +30,13 @@ enum FlowLevel {
   heavy
 }
 
+enum PhaseType {
+  menstruation
+  follicular
+  ovulation
+  luteal
+}
+
 enum IrregularityType {
   short_cycle
   long_cycle
@@ -46,6 +53,8 @@ model User {
   phone_number             String     @unique @db.VarChar(15)
   password                 String 
   role                     Role
+  avg_cycle_length         Int? // e.g., 28
+  avg_period_length        Int? // e.g., 5
   created_at               DateTime   @default(now())
   updated_at               DateTime   @updatedAt
 
@@ -83,8 +92,24 @@ model Cycle {
 
   period_days                 PeriodDay[]
   irregularity                Irregularity[]
+  phases                      Phase[]
 
   @@map("cycles")
+}
+
+model Phase {
+  id                       Int      @id @default(autoincrement())
+  cycle_id                 Int
+  type                     PhaseType
+  start_date               DateTime
+  end_date                 DateTime
+  description              String?
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  cycle                    Cycle    @relation(fields: [cycle_id], references: [id], onDelete: Cascade)
+
+  @@map("phases")
 }
 
 model PeriodDay {

@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsDate, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class FindAllCyclesDto {
   @IsOptional()
@@ -21,4 +21,9 @@ export class FindAllCyclesDto {
   @IsNumber()
   @IsOptional()
   user_id?: number;
+
+  @IsDate()
+  @IsOptional()
+  @Transform(() => Date)
+  date?: Date;
 }
