@@ -77,15 +77,6 @@ export class CyclesService {
         data: { end_date: newEndDate },
       });
     }
-    const user = await this.usersService.findOne(createCycleDto.user_id);
-
-    const avgCycleLength = user.avg_cycle_length || 28;
-    const avgPeriodLength = user.avg_period_length || 5;
-
-    //  start and predicted end dates  // Use provided start_date or default to today
-    const startDate = createCycleDto.start_date
-      ? new Date(createCycleDto.start_date)
-      : new Date();
     const predictedEndDate = new Date(startDate);
     predictedEndDate.setDate(predictedEndDate.getDate() + avgCycleLength - 1);
 
@@ -134,50 +125,9 @@ export class CyclesService {
     await this.prisma.phase.createMany({
       data: phases,
     });
-    const phaseData = [
-      {
-        type: 'menstruation',
-        startOffset: 0,
-        endOffset: avgPeriodLength - 1,
-      },
-      {
-        type: 'follicular',
-        startOffset: avgPeriodLength,
-        endOffset: 12,
-      },
-      {
-        type: 'ovulation',
-        startOffset: 13,
-        endOffset: 13,
-      },
-      {
-        type: 'luteal',
-        startOffset: 14,
-        endOffset: avgCycleLength - 1,
-      },
-    ];
-
-    const phases = phaseData.map((phase) => ({
-      cycle_id: cycle.id,
-      type: phase.type as PhaseType,
-      start_date: new Date(
-        startDate.getTime() + phase.startOffset * 24 * 60 * 60 * 1000,
-      ),
-      end_date: new Date(
-        startDate.getTime() + phase.endOffset * 24 * 60 * 60 * 1000,
-      ),
-    }));
-
-    await this.prisma.phase.createMany({
-      data: phases,
-    });
 
     await this.checkAndCreateIrregularities(cycle.id);
 
-    return this.prisma.cycle.findFirst({
-      where: { id: cycle.id },
-      include: { phases: true },
-    });
     return this.prisma.cycle.findFirst({
       where: { id: cycle.id },
       include: { phases: true },
@@ -186,17 +136,8 @@ export class CyclesService {
 
   async findAll(query: FindAllCyclesDto) {
     const { page = 1, limit = 10, user_id } = query;
-    const { page = 1, limit = 10, user_id } = query;
     const skip = (page - 1) * limit;
     const where: Prisma.CycleWhereInput = {
-      user_id,
-      ...(query.date && {
-        start_date: {
-          lte: new Date(query.date),
-        },
-      }),
-    };
-
       user_id,
       ...(query.date && {
         start_date: {
@@ -211,7 +152,6 @@ export class CyclesService {
         skip,
         take: +limit,
         orderBy: { id: 'desc' },
-        include: { phases: true },
         include: { phases: true },
       }),
       this.prisma.cycle.count({}),
@@ -230,7 +170,6 @@ export class CyclesService {
   async findOne(id: number, user_id?: number) {
     const cycle = await this.prisma.cycle.findUnique({
       where: { id, ...(user_id && { user_id }) },
-      where: { id, ...(user_id && { user_id }) },
     });
     if (!cycle) {
       throw new Error(`Cycle with id ${id} not found`);
@@ -241,11 +180,9 @@ export class CyclesService {
   async update(id: number, updateCycleDto: UpdateCycleDto) {
     await this.findOne(id);
 
-
     if (updateCycleDto.user_id) {
       await this.usersService.findOne(updateCycleDto.user_id);
     }
-
 
     if (updateCycleDto.start_date) {
       updateCycleDto.start_date = new Date(updateCycleDto.start_date);
@@ -256,64 +193,9 @@ export class CyclesService {
     }
 
     const updatedCycle = await this.prisma.cycle.update({
-    const updatedCycle = await this.prisma.cycle.update({
       where: { id },
       data: updateCycleDto,
     });
-
-    //  Regenerate phases only if start_date or user_id changed
-    if (updateCycleDto.start_date || updateCycleDto.user_id) {
-      // Delete old phases
-      await this.prisma.phase.deleteMany({
-        where: { cycle_id: id },
-      });
-
-      const user = await this.usersService.findOne(updatedCycle.user_id);
-      const avgCycleLength = user.avg_cycle_length || 28;
-      const avgPeriodLength = user.avg_period_length || 5;
-
-      const startDate = updatedCycle.start_date;
-
-      const phaseData = [
-        {
-          type: 'menstruation',
-          startOffset: 0,
-          endOffset: avgPeriodLength - 1,
-        },
-        {
-          type: 'follicular',
-          startOffset: avgPeriodLength,
-          endOffset: 12,
-        },
-        {
-          type: 'ovulation',
-          startOffset: 13,
-          endOffset: 13,
-        },
-        {
-          type: 'luteal',
-          startOffset: 14,
-          endOffset: avgCycleLength - 1,
-        },
-      ];
-
-      const newPhases = phaseData.map((phase) => ({
-        cycle_id: updatedCycle.id,
-        type: phase.type as PhaseType,
-        start_date: new Date(
-          startDate.getTime() + phase.startOffset * 24 * 60 * 60 * 1000,
-        ),
-        end_date: new Date(
-          startDate.getTime() + phase.endOffset * 24 * 60 * 60 * 1000,
-        ),
-      }));
-
-      await this.prisma.phase.createMany({
-        data: newPhases,
-      });
-    }
-
-    return updatedCycle;
 
     //  Regenerate phases only if start_date or user_id changed
     if (updateCycleDto.start_date || updateCycleDto.user_id) {
