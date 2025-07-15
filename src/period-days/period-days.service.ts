@@ -27,9 +27,9 @@ export class PeriodDaysService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.PeriodDayWhereInput = {
-          user_id
-        } 
-        
+      user_id,
+    };
+
     const [periodDays, total] = await Promise.all([
       this.prisma.periodDay.findMany({
         where,
@@ -75,6 +75,23 @@ export class PeriodDaysService {
     await this.findOne(id, user_id);
     return this.prisma.periodDay.delete({
       where: { id },
+    });
+  }
+  async findTodayByUserId(user_id: number) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return this.prisma.periodDay.findFirst({
+      where: {
+        user_id,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
     });
   }
 }
