@@ -10,37 +10,45 @@ export class PeriodDaysController {
   constructor(private readonly periodDaysService: PeriodDaysService) {}
 
   @Post()
-  create(@Req() request: JwtPayload,@Body() createPeriodDayDto: CreatePeriodDayDto) {
+  create(
+    @Req() request: JwtPayload,
+    @Body() createPeriodDayDto: CreatePeriodDayDto,
+  ) {
     createPeriodDayDto.user_id = request.payload.user_id;
     return this.periodDaysService.create(createPeriodDayDto);
   }
 
- @Get()
-  findAll(
-    @Req() request: JwtPayload,
-    @Query() query: FindAllPeriodDaysDto,
-  ) {
-    if (request.payload.user_id){
+  @Get()
+  findAll(@Req() request: JwtPayload, @Query() query: FindAllPeriodDaysDto) {
+    if (request.payload.user_id) {
       query.user_id = request.payload.user_id;
-
     }
     return this.periodDaysService.findAll(query);
   }
 
   @Get(':id')
-  findOne(@Req() request: JwtPayload,@Param('id') id: string) {
+  findOne(@Req() request: JwtPayload, @Param('id') id: string) {
     return this.periodDaysService.findOne(+id, request.payload.user_id);
   }
 
   @Patch(':id')
-  update(@Req() request: JwtPayload,@Param('id') id: string, @Body() updatePeriodDayDto: UpdatePeriodDayDto) {
+  update(
+    @Req() request: JwtPayload,
+    @Param('id') id: string,
+    @Body() updatePeriodDayDto: UpdatePeriodDayDto,
+  ) {
     updatePeriodDayDto.user_id = request.payload.user_id;
     return this.periodDaysService.update(+id, updatePeriodDayDto);
   }
 
   @Delete(':id')
-  remove(@Req() request: JwtPayload,@Param('id') id: string) {
+  remove(@Req() request: JwtPayload, @Param('id') id: string) {
     const user_id = request.payload.user_id;
     return this.periodDaysService.remove(+id, user_id);
+  }
+  @Get('today')
+  async getTodayPeriodDay(@Query('user_id') user_id: string) {
+    // user_id comes as string, convert to number
+    return this.periodDaysService.findTodayByUserId(Number(user_id));
   }
 }
