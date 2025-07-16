@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateCycleDto } from './dto/create-cycle.dto';
 import { UpdateCycleDto } from './dto/update-cycle.dto';
 import { FindAllCyclesDto } from './dto/find-all-cycles.dto';
@@ -23,6 +23,60 @@ export class CyclesService {
     const startDate = createCycleDto.start_date
       ? new Date(createCycleDto.start_date)
       : new Date();
+
+    const startOfMonth = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      1,
+    );
+    const endOfMonth = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth() + 1,
+      0,
+    );
+
+    const cyclesInMonth = await this.prisma.cycle.findMany({
+      where: {
+        user_id: createCycleDto.user_id,
+        start_date: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+    });
+
+    for (const cycle of cyclesInMonth) {
+      const menstruationStart = new Date(cycle.start_date);
+      const menstruationEnd = new Date(menstruationStart);
+      menstruationEnd.setDate(menstruationEnd.getDate() + avgPeriodLength - 1);
+
+      if (startDate >= menstruationStart && startDate <= menstruationEnd) {
+        throw new BadRequestException(
+          `Cannot create a new cycle. The selected start date falls within the menstruation phase (${menstruationStart.toDateString()} – ${menstruationEnd.toDateString()}) of an existing cycle this month.`,
+        );
+      }
+    }
+    const previousCycle = await this.prisma.cycle.findFirst({
+      where: {
+        user_id: createCycleDto.user_id,
+        start_date: {
+          lt: startDate,
+        },
+      },
+      orderBy: {
+        start_date: 'desc',
+      },
+    });
+
+    if (previousCycle) {
+      const newEndDate = new Date(startDate);
+      newEndDate.setDate(newEndDate.getDate() - 1);
+
+      await this.prisma.cycle.update({
+        where: { id: previousCycle.id },
+        data: { end_date: newEndDate },
+      });
+    }
     const predictedEndDate = new Date(startDate);
     predictedEndDate.setDate(predictedEndDate.getDate() + avgCycleLength - 1);
 
