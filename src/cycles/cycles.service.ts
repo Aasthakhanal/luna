@@ -14,10 +14,11 @@ export class CyclesService {
     private readonly usersService: UsersService,
   ) {}
   async create(createCycleDto: CreateCycleDto) {
+    
     const user = await this.usersService.findOne(createCycleDto.user_id);
 
     const avgCycleLength = user.avg_cycle_length || 28;
-    const avgPeriodLength = user.avg_period_length || 11;
+    const avgPeriodLength = user.avg_period_length || 5;
 
     //  start and predicted end dates  // Use provided start_date or default to today
     const startDate = createCycleDto.start_date
@@ -48,7 +49,7 @@ export class CyclesService {
     for (const cycle of cyclesInMonth) {
       const menstruationStart = new Date(cycle.start_date);
       const menstruationEnd = new Date(menstruationStart);
-      menstruationEnd.setDate(menstruationEnd.getDate() + avgPeriodLength - 1);
+      menstruationEnd.setDate(menstruationEnd.getDate() + avgPeriodLength + 5);
 
       if (startDate >= menstruationStart && startDate <= menstruationEnd) {
         throw new BadRequestException(
@@ -77,8 +78,40 @@ export class CyclesService {
         data: { end_date: newEndDate },
       });
     }
-    const predictedEndDate = new Date(startDate);
-    predictedEndDate.setDate(predictedEndDate.getDate() + avgCycleLength - 1);
+    // 1. Fetch all previous start dates for the user before this one
+    const previousCycles = await this.prisma.cycle.findMany({
+      where: {
+        user_id: createCycleDto.user_id,
+        start_date: {
+          lt: startDate,
+        },
+      },
+      orderBy: {
+        start_date: 'asc',
+      },
+      select: { start_date: true },
+    });
+
+    // 2. Apply Moving Average Algorithm
+    let predictedEndDate: Date | null = null;
+    if (previousCycles.length >= 2) {
+      const startDates = previousCycles.map((c) => new Date(c.start_date));
+      const cycleLengths: number[] = [];
+
+      for (let i = 1; i < startDates.length; i++) {
+        const diff = differenceInDays(startDates[i], startDates[i - 1]);
+        cycleLengths.push(diff);
+      }
+      const averageLength = Math.round(
+        cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length,
+      );
+      predictedEndDate = new Date(startDate);
+      predictedEndDate.setDate(predictedEndDate.getDate() + averageLength - 1);
+    } else {
+      // Fallback to user's avg cycle length
+      predictedEndDate = new Date(startDate);
+      predictedEndDate.setDate(predictedEndDate.getDate() + avgCycleLength - 1);
+    }
 
     createCycleDto.start_date = startDate;
     createCycleDto.predicted_start_date = startDate;
@@ -186,6 +219,53 @@ export class CyclesService {
 
     if (updateCycleDto.start_date) {
       updateCycleDto.start_date = new Date(updateCycleDto.start_date);
+
+      // --- Moving Average Prediction Logic ---
+      const previousCycles = await this.prisma.cycle.findMany({
+        where: {
+          user_id: updateCycleDto.user_id,
+          start_date: {
+            lt: updateCycleDto.start_date,
+          },
+        },
+        orderBy: { start_date: 'asc' },
+        select: { start_date: true },
+      });
+
+      let predictedEndDate: Date | null = null;
+
+      if (previousCycles.length >= 2) {
+        const startDates = previousCycles.map((c) => new Date(c.start_date));
+        const cycleLengths: number[] = [];
+
+        for (let i = 1; i < startDates.length; i++) {
+          const diff = differenceInDays(startDates[i], startDates[i - 1]);
+          cycleLengths.push(diff);
+        }
+
+        const averageLength = Math.round(
+          cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length,
+        );
+
+        predictedEndDate = new Date(updateCycleDto.start_date);
+        predictedEndDate.setDate(
+          predictedEndDate.getDate() + averageLength - 1,
+        );
+      } else {
+        if (!updateCycleDto.user_id) {
+          throw new Error('user_id is required to update cycle');
+        }
+        const user = await this.usersService.findOne(updateCycleDto.user_id);
+        const avgCycleLength = user.avg_cycle_length || 28;
+
+        predictedEndDate = new Date(updateCycleDto.start_date);
+        predictedEndDate.setDate(
+          predictedEndDate.getDate() + avgCycleLength - 1,
+        );
+      }
+
+      updateCycleDto.predicted_start_date = updateCycleDto.start_date;
+      updateCycleDto.predicted_end_date = predictedEndDate;
     }
 
     if (updateCycleDto.end_date) {
@@ -197,7 +277,7 @@ export class CyclesService {
       data: updateCycleDto,
     });
 
-    //  Regenerate phases only if start_date or user_id changed
+    // Regenerate phases only if start_date or user_id changed
     if (updateCycleDto.start_date || updateCycleDto.user_id) {
       // Delete old phases
       await this.prisma.phase.deleteMany({
