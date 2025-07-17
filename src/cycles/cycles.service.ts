@@ -17,7 +17,7 @@ export class CyclesService {
     const user = await this.usersService.findOne(createCycleDto.user_id);
 
     const avgCycleLength = user.avg_cycle_length || 28;
-    const avgPeriodLength = user.avg_period_length || 5;
+    const avgPeriodLength = user.avg_period_length || 11;
 
     //  start and predicted end dates  // Use provided start_date or default to today
     const startDate = createCycleDto.start_date

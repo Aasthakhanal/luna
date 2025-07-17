@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { PeriodDaysService } from './period-days.service';
 import { CreatePeriodDayDto } from './dto/create-period-day.dto';
 import { UpdatePeriodDayDto } from './dto/update-period-day.dto';
@@ -20,6 +30,7 @@ export class PeriodDaysController {
 
   @Get()
   findAll(@Req() request: JwtPayload, @Query() query: FindAllPeriodDaysDto) {
+    console.log('query', query);
     if (request.payload.user_id) {
       query.user_id = request.payload.user_id;
     }
