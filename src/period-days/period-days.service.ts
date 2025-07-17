@@ -23,11 +23,15 @@ export class PeriodDaysService {
   }
 
   async findAll(query: FindAllPeriodDaysDto) {
-    const { page = 1, limit = 10, search, user_id } = query;
+    const { page = 1, limit = 10, search, user_id, cycle_id } = query;
     const skip = (page - 1) * limit;
 
     const where: Prisma.PeriodDayWhereInput = {
       user_id,
+      ...(cycle_id && { cycle_id }),
+      ...(search && {
+        OR: [{ flow_level: search as Prisma.EnumFlowLevelFilter }],
+      }),
     };
 
     const [periodDays, total] = await Promise.all([
@@ -51,6 +55,7 @@ export class PeriodDaysService {
   }
 
   async findOne(id: number, user_id?: number) {
+    console.log('idd', id);
     const periodDay = await this.prisma.periodDay.findFirst({
       where: { id, ...(user_id && { user_id }) },
     });

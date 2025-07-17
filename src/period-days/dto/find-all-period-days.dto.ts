@@ -21,4 +21,9 @@ export class FindAllPeriodDaysDto {
   @IsNumber()
   @IsOptional()
   user_id: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  cycle_id?: number;
 }
