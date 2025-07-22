@@ -15,7 +15,6 @@ export class UsersService {
     const data = {
       ...createUserDto,
       password: await hash(createUserDto.password, 10),
-      role: Role.USER,
     };
 
     const user = await this.prisma.user.create({

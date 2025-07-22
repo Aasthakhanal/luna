@@ -22,9 +22,11 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     const user = await this.usersService.create(registerDto);
 
+    console.log(registerDto, 'registerDto');
     const [token, otp] = await Promise.all([
       this.jwtService.signAsync({
         user_id: user.id,
+        role: user.role,
       }),
       this.generateOtp(),
     ]);
@@ -67,6 +69,7 @@ export class AuthService {
 
     const token = await this.jwtService.signAsync({
       user_id: user.id,
+      role: user.role,
     });
     return { token };
   }
