@@ -17,6 +17,8 @@ export class GynecologistsService {
   async findAll(query: FindAllGynecologistsDto) {
     const { page = 1, limit = 10, latitude, longitude, distance = 10 } = query;
     const skip = (page - 1) * limit;
+    console.log(latitude, 'latitude');
+    console.log(longitude, 'longitude');
 
     if (latitude && longitude) {
       const nearbyGynecologists = await this.prisma.$queryRawUnsafe<any[]>(
@@ -56,6 +58,7 @@ export class GynecologistsService {
         WHERE distance_km <= ${distance};
         `,
       );
+
 
       const total = Number(countResult[0]?.total || 0);
 

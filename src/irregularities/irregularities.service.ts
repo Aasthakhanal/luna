@@ -48,9 +48,9 @@ export class IrregularitiesService {
     };
   }
 
-  async findOne(id: number, user_id: number | undefined) {
+  async findOne(id: number, user_id: number | undefined, cycle_id?: number) {
     const irregularity = await this.prisma.irregularity.findUnique({
-      where: { id, user_id},
+      where: { id, user_id, cycle_id},
     });
     if (!irregularity) {
       throw new Error(`Irregularity with id ${id} not found`);

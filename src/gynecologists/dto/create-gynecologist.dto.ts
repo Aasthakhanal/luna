@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsString,
   IsOptional,
@@ -15,10 +16,6 @@ export class CreateGynecologistDto {
   @IsNotEmpty()
   address: string;
 
-  @IsNumber()
-  @IsNotEmpty()
-  distance: number;
-
   @IsOptional()
   @IsString()
   phone?: string;
@@ -27,10 +24,12 @@ export class CreateGynecologistDto {
   @IsNotEmpty()
   specialty: string;
 
+  @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   latitude: number;
 
+  @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   longitude: number;
