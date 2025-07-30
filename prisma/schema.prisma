@@ -61,6 +61,7 @@ model User {
   otp                      Otp[]
   cycle                    Cycle[]
   irregularity             Irregularity[]
+  notifications            Notification[]
 
   @@map("users")
 }
@@ -171,4 +172,16 @@ model IrregularitiesGynecologist {
   gynecologist            Gynecologist @relation(fields: [gynecologist_id], references: [id], onDelete: Cascade)
 
   @@map("irregularities_gynecologists")
+}
+
+model Notification {
+    id                      Int     @id @default(autoincrement())
+    user_id                 Int
+    title                   String
+    body                    String
+    device_id               String
+
+    user                        User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+    @@map("notifications")
 }

@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Req,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from 'src/helpers/public';
 import { RegisterDto } from './dto/register.dto';
@@ -29,5 +38,33 @@ export class AuthController {
   ) {
     verifyOtpDto.user_id = request.payload.user_id;
     return this.authService.verifyOtp(verifyOtpDto);
+  }
+  // Forgot Password
+  @Public()
+  @Post('forgot-password')
+  async forgotPassword(@Body('email') email: string) {
+    return this.authService.forgotPassword(email);
+  }
+
+  @Public()
+  @Post('verify-reset-otp')
+  async verifyResetOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    return this.authService.verifyResetOtp(verifyOtpDto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  async resetPassword(
+    @Body('email') email: string,
+    @Body('otp') otp: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.authService.resetPassword(email, otp, newPassword);
+  }
+
+  @Public()
+  @Post('resend-reset-otp')
+  async resendResetOtp(@Body('email') email: string) {
+    return this.authService.resendResetOtp(email);
   }
 }

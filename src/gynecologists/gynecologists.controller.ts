@@ -18,14 +18,13 @@ export class GynecologistsController {
   constructor(private readonly gynecologistsService: GynecologistsService) {}
 
   @Post()
-  create(
-    @Body() createGynecologistDto: CreateGynecologistDto,
-  ) {
+  create(@Body() createGynecologistDto: CreateGynecologistDto) {
     return this.gynecologistsService.create(createGynecologistDto);
   }
 
   @Get()
   findAll(@Query() query: FindAllGynecologistsDto) {
+    console.log(query, 'query');
     return this.gynecologistsService.findAll(query);
   }
 

@@ -4,6 +4,7 @@ import { UpdateGynecologistDto } from './dto/update-gynecologist.dto';
 import { FindAllGynecologistsDto } from './dto/find-all-gynecologists.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
+import { Gynecologist } from '@prisma/client';
 
 @Injectable()
 export class GynecologistsService {
@@ -17,12 +18,19 @@ export class GynecologistsService {
   async findAll(query: FindAllGynecologistsDto) {
     const { page = 1, limit = 10, latitude, longitude, distance = 10 } = query;
     const skip = (page - 1) * limit;
-    console.log(latitude, 'latitude');
-    console.log(longitude, 'longitude');
+
+    console.log('latitude:', latitude);
+    console.log('longitude:', longitude);
 
     if (latitude && longitude) {
-      const nearbyGynecologists = await this.prisma.$queryRawUnsafe<any[]>(
+      type GynecologistWithDistance = Gynecologist & { distance_km: number };
+
+      const nearbyGynecologists = await this.prisma.$queryRawUnsafe<
+        GynecologistWithDistance[]
+      >(
         `
+      SELECT *
+      FROM (
         SELECT *, (
           6371 * acos(
             cos(radians(${latitude})) * 
@@ -32,38 +40,45 @@ export class GynecologistsService {
             sin(radians(latitude))
           )
         ) AS distance_km
-        FROM "Gynecologist"
-        HAVING distance_km <= ${distance}
-        ORDER BY distance_km ASC
-        OFFSET ${skip}
-        LIMIT ${limit};
-        `,
+        FROM "gynecologists"
+      ) AS subquery
+      WHERE distance_km <= ${distance}
+      ORDER BY distance_km ASC
+      OFFSET ${skip}
+      LIMIT ${limit};
+      `,
       );
 
-      const countResult = await this.prisma.$queryRawUnsafe<any[]>(
+      const countResult = await this.prisma.$queryRawUnsafe<
+        { total: number }[]
+      >(
         `
-        SELECT COUNT(*) as total
-        FROM (
-          SELECT (
-            6371 * acos(
-              cos(radians(${latitude})) * 
-              cos(radians(latitude)) * 
-              cos(radians(longitude) - radians(${longitude})) + 
-              sin(radians(${latitude})) * 
-              sin(radians(latitude))
-            )
-          ) AS distance_km
-          FROM "Gynecologist"
-        ) AS subquery
-        WHERE distance_km <= ${distance};
-        `,
+      SELECT COUNT(*) as total
+      FROM (
+        SELECT (
+          6371 * acos(
+            cos(radians(${latitude})) * 
+            cos(radians(latitude)) * 
+            cos(radians(longitude) - radians(${longitude})) + 
+            sin(radians(${latitude})) * 
+            sin(radians(latitude))
+          )
+        ) AS distance_km
+        FROM "gynecologists"
+      ) AS subquery
+      WHERE distance_km <= ${distance};
+      `,
       );
-
 
       const total = Number(countResult[0]?.total || 0);
 
       return {
-        data: nearbyGynecologists,
+        data: nearbyGynecologists.map((rest) => ({
+          ...rest,
+          ...(rest.distance_km && {
+            distance_km: Number(rest.distance_km.toFixed(2)),
+          }),
+        })),
         meta: {
           total,
           page,
@@ -73,7 +88,6 @@ export class GynecologistsService {
       };
     }
 
-    // If no location-based filtering
     const [gynecologists, total] = await Promise.all([
       this.prisma.gynecologist.findMany({
         skip,
@@ -112,8 +126,8 @@ export class GynecologistsService {
     });
   }
 
-  async remove(id: number ) {
-    await this.findOne(id );
+  async remove(id: number) {
+    await this.findOne(id);
     return this.prisma.gynecologist.delete({
       where: { id },
     });
