@@ -11,6 +11,7 @@ import { CyclesModule } from './cycles/cycles.module';
 import { PeriodDaysModule } from './period-days/period-days.module';
 import { IrregularitiesModule } from './irregularities/irregularities.module';
 import { GynecologistsModule } from './gynecologists/gynecologists.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [PrismaModule, UsersModule, AuthModule,
@@ -23,7 +24,8 @@ import { GynecologistsModule } from './gynecologists/gynecologists.module';
     CyclesModule,
     PeriodDaysModule,
     IrregularitiesModule,
-    GynecologistsModule
+    GynecologistsModule,
+    NotificationsModule
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService, IsUniqueConstraint],

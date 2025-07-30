@@ -1,5 +1,10 @@
 import { InjectQueue } from '@nestjs/bull';
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OtpType } from '@prisma/client';
 import { Queue } from 'bull';
@@ -75,6 +80,7 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
+    console.log(email, 'email');
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
@@ -137,6 +143,29 @@ export class AuthService {
     });
 
     return { message: 'Password reset successful' };
+  }
+  async resendResetOtp(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const otp = await this.generateOtp();
+
+    await this.prisma.otp.create({
+      data: {
+        otp,
+        user_id: user.id,
+        type: OtpType.reset,
+      },
+    });
+
+    await this.authQueue.add('send-reset-password-email', {
+      to: email,
+      otp,
+    });
+
+    return { message: 'A reset password OTP has been resent to your email' };
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
