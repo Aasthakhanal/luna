@@ -83,4 +83,11 @@ export class UsersService {
       where: { id },
     });
   }
+
+  // async updateFcmToken(user_id: number, fcmToken: string) {
+  //   return this.prisma.user.update({
+  //     where: { id: user_id },
+  //     data: { fcm_token: fcmToken },
+  //   });
+  // }
 }

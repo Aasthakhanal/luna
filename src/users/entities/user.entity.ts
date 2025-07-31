@@ -7,6 +7,7 @@ export class User {
     password: string;
     phone_number: string;
     role: Role;
+    fcm_token: string | null;
     created_at: Date;
     updated_at: Date;
 }

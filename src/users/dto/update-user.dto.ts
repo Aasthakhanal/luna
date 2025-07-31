@@ -11,7 +11,7 @@ import {
 import { IsUnique } from 'src/validators/is-unique-validator';
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
-     @IsOptional()
+  @IsOptional()
   @IsString()
   @IsUnique('user', 'email', 'id')
   email: string;
@@ -22,4 +22,6 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @MaxLength(15)
   @IsUnique('user', 'phone_number', 'id')
   phone_number: string;
+  user_id: number;
+  fcm_token: string;
 }

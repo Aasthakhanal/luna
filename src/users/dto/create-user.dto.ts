@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
   MinLength,
@@ -35,4 +36,8 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsEnum(Role)
   role: Role;
+
+  @IsOptional()
+  @IsString()
+  fcm_token: string;
 }
