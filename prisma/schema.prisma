@@ -53,6 +53,7 @@ model User {
   phone_number             String     @unique @db.VarChar(15)
   password                 String 
   role                     Role
+  fcm_token                String
   avg_cycle_length         Int? // e.g., 28
   avg_period_length        Int? // e.g., 5
   created_at               DateTime   @default(now())
