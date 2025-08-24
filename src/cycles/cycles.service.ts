@@ -4,6 +4,7 @@ import { UpdateCycleDto } from './dto/update-cycle.dto';
 import { FindAllCyclesDto } from './dto/find-all-cycles.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
 import { differenceInDays } from 'date-fns';
 import { PhaseType, Prisma } from '@prisma/client';
 
@@ -12,9 +13,9 @@ export class CyclesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
   ) {}
   async create(createCycleDto: CreateCycleDto) {
-    
     const user = await this.usersService.findOne(createCycleDto.user_id);
 
     const avgCycleLength = user.avg_cycle_length || 28;
@@ -160,6 +161,21 @@ export class CyclesService {
     });
 
     await this.checkAndCreateIrregularities(cycle.id);
+
+    // Check all notification conditions after cycle creation
+    try {
+      await this.notificationsService.checkAllNotificationConditions(
+        createCycleDto.user_id,
+      );
+      console.log(
+        `✅ Notification check completed for user ${createCycleDto.user_id} after cycle creation`,
+      );
+    } catch (error) {
+      console.error(
+        '❌ Error checking notifications after cycle creation:',
+        error,
+      );
+    }
 
     return this.prisma.cycle.findFirst({
       where: { id: cycle.id },
@@ -327,6 +343,21 @@ export class CyclesService {
       await this.prisma.phase.createMany({
         data: newPhases,
       });
+    }
+
+    // Check all notification conditions after cycle update
+    try {
+      await this.notificationsService.checkAllNotificationConditions(
+        updatedCycle.user_id,
+      );
+      console.log(
+        `✅ Notification check completed for user ${updatedCycle.user_id} after cycle update`,
+      );
+    } catch (error) {
+      console.error(
+        '❌ Error checking notifications after cycle update:',
+        error,
+      );
     }
 
     return updatedCycle;

@@ -14,7 +14,10 @@ import { GynecologistsModule } from './gynecologists/gynecologists.module';
 import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, UsersModule, AuthModule,
+  imports: [
+    PrismaModule,
+    UsersModule,
+    AuthModule,
     BullModule.forRoot({
       redis: {
         host: process.env.REDIS_HOST,
@@ -25,7 +28,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     PeriodDaysModule,
     IrregularitiesModule,
     GynecologistsModule,
-    NotificationsModule
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService, IsUniqueConstraint],
