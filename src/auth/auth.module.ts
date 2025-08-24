@@ -19,11 +19,6 @@ import { AuthProcessor } from './auth.processor';
     }),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    PrismaService,
-    UsersService,
-    AuthProcessor,
-  ],
+  providers: [AuthService, PrismaService, UsersService, AuthProcessor],
 })
 export class AuthModule {}

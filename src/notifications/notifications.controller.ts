@@ -1,21 +1,41 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { sendNotificationDTO } from './dto/send-notification.dto';
+import { FindAllNotificationsDto } from './dto/find-all-notification.dto';
+import { JwtPayload } from 'src/interfaces/jwt-payload';
 
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @Post()
-  sendNotification(@Body() pushNotification: sendNotificationDTO) {
-    this.notificationsService.sendPush(pushNotification);
+  async sendNotification(@Body() pushNotification: sendNotificationDTO) {
+    await this.notificationsService.sendPush(pushNotification);
   }
 
   @Get()
-  findAll() {
-    return this.notificationsService.findAll();
+  async findAll(
+    @Query() query: FindAllNotificationsDto,
+    @Req() req: JwtPayload,
+  ) {
+    const { user_id, role } = req.payload;
+
+    if (role === 'USER') {
+      query.user_id = user_id;
+    }
+
+    return this.notificationsService.findAll(query);
   }
 
   @Get(':id')
@@ -34,5 +54,17 @@ export class NotificationsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.notificationsService.remove(+id);
+  }
+
+  @Post('user-daily-check')
+  async userDailyCheck(@Req() req: JwtPayload) {
+    const { user_id } = req.payload;
+    return this.notificationsService.checkUserDailyStatus(user_id);
+  }
+
+  @Patch('mark-all-read')
+  async markAllAsRead(@Req() req: JwtPayload) {
+    const { user_id } = req.payload;
+    return this.notificationsService.markAllAsRead(user_id);
   }
 }

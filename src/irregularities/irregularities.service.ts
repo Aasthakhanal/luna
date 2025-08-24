@@ -23,11 +23,11 @@ export class IrregularitiesService {
   }
 
   async findAll(query: FindAllIrregularitiesDto) {
-    const { page = 1, limit = 10, search, user_id } = query;
+    const { page = 1, limit = 10, user_id } = query;
     const skip = (page - 1) * limit;
     const where: Prisma.IrregularityWhereInput = {
-      user_id
-    }
+      user_id,
+    };
     const [irregularities, total] = await Promise.all([
       this.prisma.irregularity.findMany({
         where,
@@ -50,7 +50,7 @@ export class IrregularitiesService {
 
   async findOne(id: number, user_id: number | undefined, cycle_id?: number) {
     const irregularity = await this.prisma.irregularity.findUnique({
-      where: { id, user_id, cycle_id},
+      where: { id, user_id, cycle_id },
     });
     if (!irregularity) {
       throw new Error(`Irregularity with id ${id} not found`);
