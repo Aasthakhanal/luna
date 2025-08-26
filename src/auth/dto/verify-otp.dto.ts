@@ -10,4 +10,8 @@ export class VerifyOtpDto {
   @IsOptional()
   @IsNumber()
   user_id: number;
+
+  @IsString()
+  @IsNotEmpty()
+  email: string;
 }

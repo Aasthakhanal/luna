@@ -40,11 +40,12 @@ export class AuthService {
       this.prisma.otp.create({
         data: {
           user_id: user.id,
+          email: user.email,
           otp,
           type: OtpType.registration,
         },
       }),
-      this.authQueue.add('send-verification-email', {
+      this.authQueue.add('send-reset-password-email', {
         to: user.email,
         otp,
       }),
@@ -81,7 +82,9 @@ export class AuthService {
 
   async forgotPassword(email: string) {
     console.log(email, 'email');
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: String(email) },
+    });
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -93,6 +96,7 @@ export class AuthService {
       data: {
         otp,
         user_id: user.id,
+        email: user.email,
         type: OtpType.reset,
       },
     });
@@ -106,13 +110,15 @@ export class AuthService {
   }
 
   async verifyResetOtp(verifyOtpDto: VerifyOtpDto) {
-    const { otp, user_id } = verifyOtpDto;
-    const user = await this.prisma.user.findUnique({ where: { id: user_id } });
+    const { otp, email } = verifyOtpDto;
+    const user = await this.prisma.user.findUnique({
+      where: { email: String(email) },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
-        user_id: user.id,
+        email: user.email,
         otp,
         type: OtpType.reset,
       },
@@ -130,6 +136,7 @@ export class AuthService {
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
         user_id: user.id,
+        email: user.email,
         otp,
         type: OtpType.reset,
       },
@@ -156,6 +163,7 @@ export class AuthService {
       data: {
         otp,
         user_id: user.id,
+        email: user.email,
         type: OtpType.reset,
       },
     });
@@ -169,12 +177,14 @@ export class AuthService {
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
-    const { otp, user_id } = dto;
+    const { otp, email } = dto;
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
-        user_id,
         otp,
         type: OtpType.registration,
+        user: {
+          email: String(email),
+        },
       },
     });
     if (!otpRecord) {
