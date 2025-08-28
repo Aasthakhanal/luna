@@ -1,12 +1,5 @@
-import { Decimal } from '@prisma/client/runtime/library';
 import { Type } from 'class-transformer';
-import {
-  IsString,
-  IsOptional,
-  IsDecimal,
-  IsNumber,
-  IsNotEmpty,
-} from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
 
 export class CreateGynecologistDto {
   @IsString()
@@ -25,13 +18,13 @@ export class CreateGynecologistDto {
   @IsNotEmpty()
   specialty: string;
 
-  @Type(() => Decimal)
-  @IsDecimal()
+  @Type(() => Number)
+  @IsNumber()
   @IsNotEmpty()
-  latitude: Decimal;
+  latitude: number;
 
-  @Type(() => Decimal)
-  @IsDecimal()
+  @Type(() => Number)
+  @IsNumber()
   @IsNotEmpty()
-  longitude: Decimal;
+  longitude: number;
 }

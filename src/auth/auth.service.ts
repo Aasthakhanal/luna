@@ -11,7 +11,7 @@ import { Queue } from 'bull';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { compare } from 'bcrypt';
+import { compare, hash } from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -40,12 +40,11 @@ export class AuthService {
       this.prisma.otp.create({
         data: {
           user_id: user.id,
-          email: user.email,
           otp,
           type: OtpType.registration,
         },
       }),
-      this.authQueue.add('send-reset-password-email', {
+      this.authQueue.add('send-verification-email', {
         to: user.email,
         otp,
       }),
@@ -82,9 +81,7 @@ export class AuthService {
 
   async forgotPassword(email: string) {
     console.log(email, 'email');
-    const user = await this.prisma.user.findUnique({
-      where: { email: String(email) },
-    });
+    const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -96,7 +93,6 @@ export class AuthService {
       data: {
         otp,
         user_id: user.id,
-        email: user.email,
         type: OtpType.reset,
       },
     });
@@ -106,19 +102,20 @@ export class AuthService {
       otp,
     });
 
-    return { message: 'A reset password OTP has been sent to your email' };
+    return {
+      message: 'A reset password OTP has been sent to your email',
+      user_id: user.id,
+    };
   }
 
   async verifyResetOtp(verifyOtpDto: VerifyOtpDto) {
-    const { otp, email } = verifyOtpDto;
-    const user = await this.prisma.user.findUnique({
-      where: { email: String(email) },
-    });
+    const { otp, user_id } = verifyOtpDto;
+    const user = await this.prisma.user.findUnique({ where: { id: user_id } });
     if (!user) throw new NotFoundException('User not found');
 
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
-        email: user.email,
+        user_id: user.id,
         otp,
         type: OtpType.reset,
       },
@@ -136,7 +133,6 @@ export class AuthService {
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
         user_id: user.id,
-        email: user.email,
         otp,
         type: OtpType.reset,
       },
@@ -144,10 +140,16 @@ export class AuthService {
 
     if (!otpRecord) throw new BadRequestException('Invalid OTP');
 
+    // Hash the new password before saving
+    const hashedPassword = await hash(newPassword, 10);
+
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { password: newPassword },
+      data: { password: hashedPassword },
     });
+
+    // Delete the used OTP
+    await this.prisma.otp.delete({ where: { id: otpRecord.id } });
 
     return { message: 'Password reset successful' };
   }
@@ -163,7 +165,6 @@ export class AuthService {
       data: {
         otp,
         user_id: user.id,
-        email: user.email,
         type: OtpType.reset,
       },
     });
@@ -177,14 +178,12 @@ export class AuthService {
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
-    const { otp, email } = dto;
+    const { otp, user_id } = dto;
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
+        user_id,
         otp,
         type: OtpType.registration,
-        user: {
-          email: String(email),
-        },
       },
     });
     if (!otpRecord) {

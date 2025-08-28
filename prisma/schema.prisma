@@ -42,8 +42,6 @@ enum IrregularityType {
   short_cycle
   long_cycle
   missed_period
-  heavy_flow
-  light_flow
   other
 }
 
