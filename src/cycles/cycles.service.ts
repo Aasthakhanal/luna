@@ -160,7 +160,8 @@ export class CyclesService {
       data: phases,
     });
 
-    await this.checkAndCreateIrregularities(cycle.id);
+    // Check irregularities for the previous cycle (not the current one being created)
+    await this.checkAndCreateIrregularities(createCycleDto.user_id, startDate);
 
     // Check all notification conditions after cycle creation
     try {
@@ -369,51 +370,54 @@ export class CyclesService {
       where: { id },
     });
   }
-  private async checkAndCreateIrregularities(cycleId: number) {
-    const cycle = await this.prisma.cycle.findUnique({
-      where: { id: cycleId },
+  private async checkAndCreateIrregularities(
+    userId: number,
+    currentCycleStartDate: Date,
+  ) {
+    // Find the most recently created cycle before the current one
+    const previousCycle = await this.prisma.cycle.findFirst({
+      where: {
+        user_id: userId,
+        start_date: {
+          lt: currentCycleStartDate,
+        },
+      },
+      orderBy: { start_date: 'desc' },
       include: { period_days: true },
     });
 
-    if (!cycle) return;
+    if (!previousCycle) {
+      console.log('No previous cycle found for irregularity check');
+      return;
+    }
 
-    const irregularities: (
-      | 'short_cycle'
-      | 'long_cycle'
-      | 'missed_period'
-      | 'heavy_flow'
-      | 'light_flow'
-    )[] = [];
+    const irregularities: ('short_cycle' | 'long_cycle' | 'missed_period')[] =
+      [];
 
     // Check for short/long cycle
-    if (cycle.end_date) {
+    if (previousCycle.end_date) {
       const length = differenceInDays(
-        new Date(cycle.end_date),
-        new Date(cycle.start_date),
+        new Date(previousCycle.end_date),
+        new Date(previousCycle.start_date),
       );
       if (length < 21) irregularities.push('short_cycle');
       else if (length > 35) irregularities.push('long_cycle');
     }
 
     // Check for missed period
-    if (!cycle.end_date) {
+    if (!previousCycle.end_date) {
       const daysSinceStart = differenceInDays(
-        new Date(),
-        new Date(cycle.start_date),
+        currentCycleStartDate, // Use current cycle start date as reference
+        new Date(previousCycle.start_date),
       );
       if (daysSinceStart > 45) irregularities.push('missed_period');
     }
 
-    // Check for heavy/light flow
-    const periodLength = cycle.period_days.length;
-    if (periodLength > 7) irregularities.push('heavy_flow');
-    else if (periodLength < 2) irregularities.push('light_flow');
-
-    // Save irregularities
+    // Save irregularities for the previous cycle
     for (const type of irregularities) {
       const existing = await this.prisma.irregularity.findFirst({
         where: {
-          cycle_id: cycle.id,
+          cycle_id: previousCycle.id,
           irregularity_type: type,
         },
       });
@@ -421,11 +425,14 @@ export class CyclesService {
       if (!existing) {
         await this.prisma.irregularity.create({
           data: {
-            user_id: cycle.user_id,
-            cycle_id: cycle.id,
+            user_id: previousCycle.user_id,
+            cycle_id: previousCycle.id,
             irregularity_type: type,
           },
         });
+        console.log(
+          `Created irregularity: ${type} for cycle ${previousCycle.id}`,
+        );
       }
     }
   }

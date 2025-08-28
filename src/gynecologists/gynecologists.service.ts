@@ -4,14 +4,18 @@ import { UpdateGynecologistDto } from './dto/update-gynecologist.dto';
 import { FindAllGynecologistsDto } from './dto/find-all-gynecologists.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
-import { Gynecologist } from '@prisma/client';
+import { Gynecologist, Prisma } from '@prisma/client';
 
 @Injectable()
 export class GynecologistsService {
   constructor(private readonly prisma: PrismaService) {}
   async create(createGynecologistsDto: CreateGynecologistDto) {
     return await this.prisma.gynecologist.create({
-      data: createGynecologistsDto,
+      data: {
+        ...createGynecologistsDto,
+        latitude: new Prisma.Decimal(createGynecologistsDto.latitude),
+        longitude: new Prisma.Decimal(createGynecologistsDto.longitude),
+      },
     });
   }
 
@@ -120,9 +124,18 @@ export class GynecologistsService {
 
   async update(id: number, updateGynecologistDto: UpdateGynecologistDto) {
     await this.findOne(id);
+
     return await this.prisma.gynecologist.update({
       where: { id },
-      data: updateGynecologistDto,
+      data: {
+        ...updateGynecologistDto,
+        ...(updateGynecologistDto.latitude !== undefined && {
+          latitude: new Prisma.Decimal(updateGynecologistDto.latitude),
+        }),
+        ...(updateGynecologistDto.longitude !== undefined && {
+          longitude: new Prisma.Decimal(updateGynecologistDto.longitude),
+        }),
+      },
     });
   }
 

@@ -9,9 +9,8 @@ import {
   Prisma,
   User,
   Cycle,
-  Phase,
-  PhaseType,
   IrregularityType,
+  PhaseType,
 } from '@prisma/client';
 
 @Injectable()
@@ -47,8 +46,7 @@ export class NotificationsService {
       await this.create(notification);
 
       return { success: true, message: 'Notification sent and saved.' };
-    } catch (error) {
-      console.error('Notification Error:', error);
+    } catch {
       return { success: false, message: 'Failed to send notification' };
     }
   }
@@ -143,11 +141,87 @@ export class NotificationsService {
     };
   }
 
-  // Helper method to send irregularity notifications
+  // Helper method to check if a similar notification was already sent recently
+  private async hasRecentNotification(
+    userId: number,
+    notificationType: 'period_approaching' | 'irregularity' | 'phase',
+    minutesThreshold: number = 1,
+  ): Promise<boolean> {
+    const thresholdDate = new Date();
+    thresholdDate.setMinutes(thresholdDate.getMinutes() - minutesThreshold);
+
+    let titlePattern: string;
+    if (notificationType === 'period_approaching') {
+      titlePattern = '📅 Period Approaching';
+    } else if (notificationType === 'irregularity') {
+      titlePattern = '⚠️ Cycle Irregularity Detected';
+    } else {
+      titlePattern = '🌸 Current Cycle Phase';
+    }
+
+    const existingNotification = await this.prisma.notification.findFirst({
+      where: {
+        user_id: userId,
+        title: titlePattern,
+        created_at: {
+          gte: thresholdDate,
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return !!existingNotification;
+  }
+
+  private async hasRecentIrregularityNotification(
+    userId: number,
+    irregularityType: IrregularityType,
+    minutesThreshold: number = 1,
+  ): Promise<boolean> {
+    const thresholdDate = new Date();
+    thresholdDate.setMinutes(thresholdDate.getMinutes() - minutesThreshold);
+
+    const bodyPattern = this.getIrregularityMessage(irregularityType, '%');
+    const patternWithoutName = bodyPattern.replace('Hi %, ', '').split('.')[0];
+
+    const existingNotification = await this.prisma.notification.findFirst({
+      where: {
+        user_id: userId,
+        title: '⚠️ Cycle Irregularity Detected',
+        body: {
+          contains: patternWithoutName,
+        },
+        created_at: {
+          gte: thresholdDate,
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    return !!existingNotification;
+  }
+
   private async sendIrregularityNotification(
     user: User,
     irregularityType: IrregularityType,
   ): Promise<{ success: boolean; message: string }> {
+    const hasRecent = await this.hasRecentIrregularityNotification(
+      user.id,
+      irregularityType,
+      1,
+    );
+
+    if (hasRecent) {
+      return {
+        success: false,
+        message: 'Similar notification already sent within 1 minute',
+      };
+    }
+
     const notification = {
       title: '⚠️ Cycle Irregularity Detected',
       body: this.getIrregularityMessage(irregularityType, user.name),
@@ -158,91 +232,6 @@ export class NotificationsService {
     return await this.sendPush(notification);
   }
 
-  private async checkPeriodDelayAndNotify(
-    user: User,
-    latestCycle: Cycle,
-    today: Date,
-  ): Promise<{
-    type: 'delay';
-    title: string;
-    body: string;
-    sent: boolean;
-  } | null> {
-    const predictedStart = new Date(latestCycle.predicted_start_date);
-    const daysDifference = Math.floor(
-      (today.getTime() - predictedStart.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    // If period is 3+ days late and cycle hasn't ended
-    if (daysDifference >= 3 && !latestCycle.end_date) {
-      const notification = {
-        title: '🩸 Period Delay Alert',
-        body: `Hi ${user.name}, your period is ${daysDifference} days late. Consider tracking symptoms or consulting a healthcare provider.`,
-        device_id: user.fcm_token as string,
-        user_id: user.id.toString(),
-      };
-
-      const result = await this.sendPush(notification);
-      return {
-        type: 'delay',
-        title: notification.title,
-        body: notification.body,
-        sent: result.success,
-      };
-    }
-
-    return null;
-  }
-
-  // New method: Check for late period notifications
-  private async checkLatePeriodAndNotify(
-    user: User,
-    latestCycle: Cycle,
-    today: Date,
-  ): Promise<{
-    type: 'late_period';
-    title: string;
-    body: string;
-    sent: boolean;
-  } | null> {
-    // For next cycle prediction
-    const currentCycleStart = new Date(latestCycle.start_date);
-    const avgCycleLength = user.avg_cycle_length || 28;
-
-    // Calculate when next period should have started
-    const expectedNextPeriodDate = new Date(currentCycleStart);
-    expectedNextPeriodDate.setDate(
-      currentCycleStart.getDate() + avgCycleLength,
-    );
-
-    // Calculate days late
-    const daysLate = Math.floor(
-      (today.getTime() - expectedNextPeriodDate.getTime()) /
-        (1000 * 60 * 60 * 24),
-    );
-
-    // If period is 2+ days late
-    if (daysLate >= 2 && !latestCycle.end_date) {
-      const notification = {
-        title: '⏰ Period is Late',
-        body: `Hi ${user.name}, your period is ${daysLate} days late. Consider tracking symptoms and consulting your healthcare provider if this continues.`,
-        device_id: user.fcm_token as string,
-        user_id: user.id.toString(),
-      };
-
-      const result = await this.sendPush(notification);
-      return {
-        type: 'late_period',
-        title: notification.title,
-        body: notification.body,
-        sent: result.success,
-      };
-    }
-
-    return null;
-  }
-
-  // Helper method to check if period is approaching (less than 10 days)
   private async checkPeriodApproachingAndNotify(
     user: User,
     latestCycle: Cycle,
@@ -253,21 +242,32 @@ export class NotificationsService {
     body: string;
     sent: boolean;
   } | null> {
-    // Calculate next cycle's predicted start date
     const currentCycleStart = new Date(latestCycle.start_date);
     const avgCycleLength = user.avg_cycle_length || 28;
 
-    // Next period predicted start date
     const nextPeriodDate = new Date(currentCycleStart);
     nextPeriodDate.setDate(currentCycleStart.getDate() + avgCycleLength);
 
-    // Calculate days until next period
     const daysUntilPeriod = Math.floor(
       (nextPeriodDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    // If period is approaching (less than 10 days) and more than 0 days
     if (daysUntilPeriod > 0 && daysUntilPeriod < 10) {
+      const hasRecent = await this.hasRecentNotification(
+        user.id,
+        'period_approaching',
+        1,
+      );
+
+      if (hasRecent) {
+        return {
+          type: 'period_approaching',
+          title: '📅 Period Approaching',
+          body: `Hi ${user.name}, your next period is expected in ${daysUntilPeriod} days. Get prepared and track your symptoms!`,
+          sent: false,
+        };
+      }
+
       const notification = {
         title: '📅 Period Approaching',
         body: `Hi ${user.name}, your next period is expected in ${daysUntilPeriod} days. Get prepared and track your symptoms!`,
@@ -287,12 +287,60 @@ export class NotificationsService {
     return null;
   }
 
-  // New method for individual user daily check (called on login)
+  private async checkCurrentPhaseAndNotify(
+    user: User,
+    latestCycle: Cycle,
+    today: Date,
+  ): Promise<{
+    type: 'phase';
+    title: string;
+    body: string;
+    sent: boolean;
+  } | null> {
+    const currentPhase = await this.prisma.phase.findFirst({
+      where: {
+        cycle_id: latestCycle.id,
+        start_date: { lte: today },
+        end_date: { gte: today },
+      },
+    });
+
+    if (!currentPhase) {
+      return null;
+    }
+
+    const hasRecent = await this.hasRecentNotification(user.id, 'phase', 1);
+
+    if (hasRecent) {
+      return {
+        type: 'phase',
+        title: '🌸 Current Cycle Phase',
+        body: this.getPhaseMessage(currentPhase.type, user.name),
+        sent: false,
+      };
+    }
+
+    const notification = {
+      title: '🌸 Current Cycle Phase',
+      body: this.getPhaseMessage(currentPhase.type, user.name),
+      device_id: user.fcm_token as string,
+      user_id: user.id.toString(),
+    };
+
+    const result = await this.sendPush(notification);
+    return {
+      type: 'phase',
+      title: notification.title,
+      body: notification.body,
+      sent: result.success,
+    };
+  }
+
   async checkUserDailyStatus(userId: number): Promise<{
     success: boolean;
     message: string;
     notifications: Array<{
-      type: 'phase' | 'period_approaching' | 'irregularity' | 'late_period';
+      type: 'period_approaching' | 'irregularity' | 'phase';
       title: string;
       body: string;
       sent: boolean;
@@ -309,14 +357,6 @@ export class NotificationsService {
           cycle: {
             orderBy: { start_date: 'desc' },
             take: 1,
-            include: {
-              phases: {
-                where: {
-                  start_date: { lte: today },
-                  end_date: { gte: today },
-                },
-              },
-            },
           },
           irregularity: {
             where: {
@@ -337,49 +377,39 @@ export class NotificationsService {
       }
 
       const notifications: Array<{
-        type: 'phase' | 'period_approaching' | 'irregularity' | 'late_period';
+        type: 'period_approaching' | 'irregularity' | 'phase';
         title: string;
         body: string;
         sent: boolean;
       }> = [];
 
-      // 1. CONDITION 1: Check current phase and display notification
+      // 1. Check current cycle phase
       if (user.cycle.length > 0) {
         const latestCycle = user.cycle[0];
-
-        if (latestCycle.phases.length > 0) {
-          const currentPhase = latestCycle.phases[0];
-          const phaseNotification = await this.sendCurrentPhaseNotification(
-            user,
-            currentPhase,
-          );
-          notifications.push({
-            type: 'phase',
-            title: '🌸 Current Cycle Phase',
-            body: this.getPhaseMessage(currentPhase.type, user.name),
-            sent: phaseNotification.success,
-          });
-        }
-
-        // 2. CONDITION 2: Check if next period is less than 10 days away
-        const periodApproachingNotification =
-          await this.checkPeriodApproachingAndNotify(user, latestCycle, today);
-        if (periodApproachingNotification) {
-          notifications.push(periodApproachingNotification);
-        }
-
-        // 3. NEW CONDITION: Check if period is late
-        const latePeriodNotification = await this.checkLatePeriodAndNotify(
+        const phaseNotification = await this.checkCurrentPhaseAndNotify(
           user,
           latestCycle,
           today,
         );
-        if (latePeriodNotification) {
-          notifications.push(latePeriodNotification);
+        if (phaseNotification && phaseNotification.sent) {
+          notifications.push(phaseNotification);
         }
       }
 
-      // 4. CONDITION 3: Check for any recent irregularities
+      // 2. Check if next period is less than 60 days away
+      if (user.cycle.length > 0) {
+        const latestCycle = user.cycle[0];
+        const periodApproachingNotification =
+          await this.checkPeriodApproachingAndNotify(user, latestCycle, today);
+        if (
+          periodApproachingNotification &&
+          periodApproachingNotification.sent
+        ) {
+          notifications.push(periodApproachingNotification);
+        }
+      }
+
+      // 3. Check for any recent irregularities
       if (user.irregularity.length > 0) {
         for (const irregularity of user.irregularity) {
           const irregularityNotification =
@@ -387,50 +417,34 @@ export class NotificationsService {
               user,
               irregularity.irregularity_type,
             );
-          notifications.push({
-            type: 'irregularity',
-            title: '⚠️ Cycle Irregularity Detected',
-            body: this.getIrregularityMessage(
-              irregularity.irregularity_type,
-              user.name,
-            ),
-            sent: irregularityNotification.success,
-          });
+          if (irregularityNotification.success) {
+            notifications.push({
+              type: 'irregularity',
+              title: '⚠️ Cycle Irregularity Detected',
+              body: this.getIrregularityMessage(
+                irregularity.irregularity_type,
+                user.name,
+              ),
+              sent: true,
+            });
+          }
         }
       }
 
       const message = `Daily check completed for user ${user.name}. ${notifications.length} notifications processed.`;
-      console.log('✅ User daily check completed:', message);
 
       return {
         success: true,
         message,
         notifications,
       };
-    } catch (error) {
-      const errorMessage = 'Failed to perform user daily check';
-      console.error('❌ Error in user daily check:', error);
+    } catch {
       return {
         success: false,
-        message: errorMessage,
+        message: 'Error occurred during user daily check',
         notifications: [],
       };
     }
-  }
-
-  // Helper method to send current phase notification
-  private async sendCurrentPhaseNotification(
-    user: User,
-    currentPhase: Phase,
-  ): Promise<{ success: boolean; message: string }> {
-    const notification = {
-      title: '🌸 Daily Cycle Update',
-      body: this.getPhaseMessage(currentPhase.type, user.name),
-      device_id: user.fcm_token as string,
-      user_id: user.id.toString(),
-    };
-
-    return await this.sendPush(notification);
   }
 
   // Helper method to get irregularity message
@@ -470,7 +484,7 @@ export class NotificationsService {
     success: boolean;
     message: string;
     notifications: Array<{
-      type: 'phase' | 'period_approaching' | 'irregularity' | 'late_period';
+      type: 'period_approaching' | 'irregularity' | 'phase';
       title: string;
       body: string;
       sent: boolean;
@@ -480,8 +494,6 @@ export class NotificationsService {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      console.log(`🔍 Checking notification conditions for user ${userId}...`);
-
       // Get user with their latest cycle and recent irregularities
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
@@ -489,9 +501,6 @@ export class NotificationsService {
           cycle: {
             orderBy: { start_date: 'desc' },
             take: 1,
-            include: {
-              phases: true, // Get all phases, we'll filter in code
-            },
           },
           irregularity: {
             where: {
@@ -504,7 +513,6 @@ export class NotificationsService {
       });
 
       if (!user) {
-        console.log(`❌ User ${userId} not found`);
         return {
           success: false,
           message: 'User not found',
@@ -513,7 +521,6 @@ export class NotificationsService {
       }
 
       if (!user.fcm_token) {
-        console.log(`❌ User ${userId} has no FCM token`);
         return {
           success: false,
           message: 'User has no FCM token',
@@ -521,112 +528,68 @@ export class NotificationsService {
         };
       }
 
-      console.log(
-        `✅ User found: ${user.name}, FCM token: ${user.fcm_token ? 'Yes' : 'No'}`,
-      );
-      console.log(
-        `📊 User has ${user.cycle.length} cycles, ${user.irregularity.length} recent irregularities`,
-      );
-
       const notifications: Array<{
-        type: 'phase' | 'period_approaching' | 'irregularity' | 'late_period';
+        type: 'period_approaching' | 'irregularity' | 'phase';
         title: string;
         body: string;
         sent: boolean;
       }> = [];
 
-      // Check all conditions if user has cycles
+      // 1. Check current cycle phase
       if (user.cycle.length > 0) {
         const latestCycle = user.cycle[0];
-        console.log(
-          `🔄 Latest cycle: ${latestCycle.start_date.toISOString()}, phases: ${latestCycle.phases.length}`,
-        );
 
-        // 1. Check current phase (find phase that contains today)
-        const currentPhase = latestCycle.phases.find((phase) => {
-          const phaseStart = new Date(phase.start_date);
-          const phaseEnd = new Date(phase.end_date);
-          phaseStart.setHours(0, 0, 0, 0);
-          phaseEnd.setHours(23, 59, 59, 999);
-          return today >= phaseStart && today <= phaseEnd;
-        });
-
-        if (currentPhase) {
-          console.log(`🌸 Current phase found: ${currentPhase.type}`);
-          const phaseNotification = await this.sendCurrentPhaseNotification(
-            user,
-            currentPhase,
-          );
-          notifications.push({
-            type: 'phase',
-            title: '🌸 Current Cycle Phase',
-            body: this.getPhaseMessage(currentPhase.type, user.name),
-            sent: phaseNotification.success,
-          });
-        } else {
-          console.log(
-            `❌ No current phase found for today (${today.toISOString().split('T')[0]})`,
-          );
-          // Log all phases for debugging
-          latestCycle.phases.forEach((phase) => {
-            console.log(
-              `  Phase ${phase.type}: ${phase.start_date.toISOString()} to ${phase.end_date.toISOString()}`,
-            );
-          });
-        }
-
-        // 2. Check if next period is approaching (less than 10 days)
-        const periodApproachingNotification =
-          await this.checkPeriodApproachingAndNotify(user, latestCycle, today);
-        if (periodApproachingNotification) {
-          console.log(`📅 Period approaching notification sent`);
-          notifications.push(periodApproachingNotification);
-        }
-
-        // 3. Check if period is late
-        const latePeriodNotification = await this.checkLatePeriodAndNotify(
+        const phaseNotification = await this.checkCurrentPhaseAndNotify(
           user,
           latestCycle,
           today,
         );
-        if (latePeriodNotification) {
-          console.log(`⏰ Late period notification sent`);
-          notifications.push(latePeriodNotification);
+        if (phaseNotification && phaseNotification.sent) {
+          notifications.push(phaseNotification);
+        }
+
+        // 2. Check if next period is approaching (less than 60 days)
+        const periodApproachingNotification =
+          await this.checkPeriodApproachingAndNotify(user, latestCycle, today);
+        if (
+          periodApproachingNotification &&
+          periodApproachingNotification.sent
+        ) {
+          notifications.push(periodApproachingNotification);
         }
       }
 
-      // 4. Check for recent irregularities
+      // 3. Check for recent irregularities
       if (user.irregularity.length > 0) {
-        console.log(`⚠️ Processing ${user.irregularity.length} irregularities`);
         for (const irregularity of user.irregularity) {
           const irregularityNotification =
             await this.sendIrregularityNotification(
               user,
               irregularity.irregularity_type,
             );
-          notifications.push({
-            type: 'irregularity',
-            title: '⚠️ Cycle Irregularity Detected',
-            body: this.getIrregularityMessage(
-              irregularity.irregularity_type,
-              user.name,
-            ),
-            sent: irregularityNotification.success,
-          });
+          if (irregularityNotification.success) {
+            notifications.push({
+              type: 'irregularity',
+              title: '⚠️ Cycle Irregularity Detected',
+              body: this.getIrregularityMessage(
+                irregularity.irregularity_type,
+                user.name,
+              ),
+              sent: true,
+            });
+          }
         }
       }
 
       const message = `Notification check completed for user ${user.name}. ${notifications.length} notifications processed.`;
-      console.log('✅ Notification check completed:', message);
 
       return {
         success: true,
         message,
         notifications,
       };
-    } catch (error) {
+    } catch {
       const errorMessage = 'Failed to check notification conditions';
-      console.error('❌ Error in notification check:', error);
       return {
         success: false,
         message: errorMessage,

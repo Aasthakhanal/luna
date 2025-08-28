@@ -12,6 +12,7 @@ import { PeriodDaysModule } from './period-days/period-days.module';
 import { IrregularitiesModule } from './irregularities/irregularities.module';
 import { GynecologistsModule } from './gynecologists/gynecologists.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ChatbotModule } from './chatbot/chatbot.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     IrregularitiesModule,
     GynecologistsModule,
     NotificationsModule,
+    ChatbotModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService, IsUniqueConstraint],
