@@ -58,6 +58,40 @@ export class CyclesService {
         );
       }
     }
+
+    // Prevent creating a cycle if there is a previous cycle within 10 days before
+    const previousCycle10 = await this.prisma.cycle.findFirst({
+      where: {
+        user_id: createCycleDto.user_id,
+        start_date: {
+          lt: startDate,
+          gte: new Date(startDate.getTime() - 10 * 24 * 60 * 60 * 1000),
+        },
+      },
+      orderBy: { start_date: 'desc' },
+    });
+    if (previousCycle10) {
+      throw new BadRequestException(
+        `Cannot create a new cycle. There is already a cycle started within 10 days before the selected start date (${previousCycle10.start_date.toDateString()}).`,
+      );
+    }
+
+    // Prevent creating a cycle if there is a next cycle within 10 days after
+    const nextCycle10 = await this.prisma.cycle.findFirst({
+      where: {
+        user_id: createCycleDto.user_id,
+        start_date: {
+          gt: startDate,
+          lte: new Date(startDate.getTime() + 10 * 24 * 60 * 60 * 1000),
+        },
+      },
+      orderBy: { start_date: 'asc' },
+    });
+    if (nextCycle10) {
+      throw new BadRequestException(
+        `Cannot create a new cycle. There is already a cycle started within 10 days after the selected start date (${nextCycle10.start_date.toDateString()}).`,
+      );
+    }
     const previousCycle = await this.prisma.cycle.findFirst({
       where: {
         user_id: createCycleDto.user_id,
