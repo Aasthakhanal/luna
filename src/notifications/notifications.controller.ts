@@ -29,11 +29,9 @@ export class NotificationsController {
     @Query() query: FindAllNotificationsDto,
     @Req() req: JwtPayload,
   ) {
-    const { user_id, role } = req.payload;
+    const { user_id } = req.payload;
 
-    if (role === 'USER') {
-      query.user_id = user_id;
-    }
+    query.user_id = user_id;
 
     return this.notificationsService.findAll(query);
   }
